@@ -1,0 +1,12 @@
+Package: Prac23RodoTutu
+Title: Interview practical for Tutu foundation
+Version: 0.0.0-1
+Authors@R: person("Miguel", "Rodo", , "miguel.rodo@uct.ac.za", role = c("aut", "cre"))
+Maintainer: Miguel Rodo <miguel.rodo@uct.ac.za>
+Description: Interview practical for Tutu foundation
+License: CC BY 4.0
+URL: https://github.com/MiguelRodo/Prac23RodoTutu/#readme
+BugReports: https://github.com/MiguelRodo/Prac23RodoTutu/issues
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3

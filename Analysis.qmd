@@ -1,0 +1,616 @@
+---
+title: Interview practical for Tutu foundation
+author: Miguel Rodo
+format:
+  pdf:
+    embed-resources: true
+---
+
+# Step One: Clean dataset
+
+```{r}
+#| include: false
+library(tibble)
+library(ggplot2)
+```
+
+First we read in our data:
+
+```{r}
+data_raw_infant <- openxlsx::read.xlsx(
+  projr::projr_path_get("data-raw", "infant_data_set.xlsx"),
+  detectDates = TRUE
+) |>
+  tibble::as_tibble()
+
+data_raw_main <- openxlsx::read.xlsx(
+  projr::projr_path_get("data-raw", "main_data_set.xlsx"),
+  detectDates = TRUE
+) |>
+  tibble::as_tibble()
+```
+
+The dates are read in as offsets from a reference date, so we fix that here:
+
+```{r}
+cn_vec_main_date <- c("DateOfBirth", "DateEnrolled")
+for (x in cn_vec_main_date) {
+  data_raw_main[[x]] <- as.Date(data_raw_main[[x]], origin = "1899-12-30")
+}
+```
+
+Now we have a look at it.
+
+Here is a summary of the columns in the infant dataset:
+
+```{r}
+UtilsDataRSV::view_cols(data_raw_infant)
+```
+
+Here is a summary of the columns in in the main dataset:
+
+```{r}
+UtilsDataRSV::view_cols(data_raw_main)
+```
+
+## Question One
+
+### Question
+
+1.	Rename variables from current names to those in the data dictionary e.g. from “MDOMA_HighestEducGrade” to “grade”
+
+### Answer
+
+First, let us examine the column names:
+
+```{r}
+colnames(data_raw_main)
+```
+
+Now we create a mapping variable:
+
+```{r}
+raw_to_dict_main <- c(
+  "PWId" = "pwid",
+  "DateOfBirth" = "mdob",
+  "DateEnrolled" = "date_enrolment",
+  "MDOMA_HighestEducGrade" = "grade",
+  "MDOMA_EmployStatus" = "employstatus",
+  "MDOMA_AssetCompositeSES" = "sescat",
+  "Haemoglobin" = "hb",
+  "Gravidity" = "grav",
+  "Parity" = "para",
+  "MDOMA_TBThisPregDiag" = "tb",
+  "MDOMA_TBPreThisPregDiag" = "tbprev",
+  "MDOMA_UsedAlcoholEver" = "alcoholever",
+  "MDOMA_UsedCigarettesEver" = "smokingever",
+  "MDOMA_UsedDrugsEver" = "drugsever",
+  "HeightCm" = "HeightCm",
+  "WeightKg" = "WeightKg",
+  "hivstatus" = "hivstatus",
+  "artstatus" = "artstatus",
+  "MAMOE_A15_ARVsCurrentlyTaking" = "regimen", # unsure
+  "Gestational.AgeEnrolment" = "gab_w",
+  "Gestational.Age.Delivery" = "gad_final"
+)
+```
+
+```{r}
+data_tidy_main <- data_raw_main
+colnames(data_tidy_main) <- raw_to_dict_main[colnames(data_tidy_main)]
+```
+
+Here are the columns for the main dataset:
+
+```{r}
+colnames(data_tidy_main)
+```
+
+It is not clear why `HeightCm` and `WeightKg` have a different format to the others, but that is what is in the dictionary.
+
+Now, let us examine the column names for the infant dataset:
+
+```{r}
+colnames(data_raw_infant)
+```
+
+These match those in the data dictionary.
+So we proceed with this dataset:
+
+```{r}
+data_tidy_infant <- data_raw_infant
+```
+
+## Question Two
+
+### Question
+
+Check if you have unique identifier for each participant, doing the following:
+
+-	Browse the participant ID (pid) variable
+-	Drop any entries with no pid to remove irrelevant observations
+-	How many participants do you have?
+-	How many variables are in your dataset?
+
+### Answer
+
+#### `main` dataset
+
+First, we examine the `main` dataset.
+
+First, we print all the participant IDs:
+
+```{r}
+unique(data_tidy_main$pwid)
+```
+
+There is at least entry that is just a dot.
+Filtering to see what these are:
+
+```{r}
+data_tidy_main |>
+  dplyr::filter(pwid == ".")
+```
+
+They all appear to be NA:
+
+```{r}
+data_tidy_main |>
+  dplyr::filter(pwid == ".") |>
+  dplyr::filter(!is.na(mdob))
+```
+
+So we exclude them:
+
+```{r}
+data_tidy_main <- data_tidy_main |>
+  dplyr::filter(pwid != ".")
+```
+
+The above addresses the concern to drop entries with no pids.
+
+We have 103 participants:
+
+```{r}
+nrow(data_tidy_main)
+```
+
+Examining the number of variables, we see that we have
+
+```{r}
+ncol(data_tidy_main) - 1
+```
+
+variables.
+
+#### `infant` dataset
+
+Now, we examine the `infant` dataset.
+
+First, we print all the participant IDs:
+
+```{r}
+unique(data_tidy_infant$pwid)
+```
+
+There do not appear to be any abberations.
+
+We have 100 infants:
+
+```{r}
+nrow(data_tidy_infant)
+```
+
+Examining the number of variables, we see that we have
+
+```{r}
+ncol(data_tidy_infant) - 1
+```
+
+variables.
+
+There is therefore a mismatch between the number of mothers and number of infants.
+
+## Question Three
+
+### Question
+
+Check for any duplicate records in the data:
+
+-	Check if the variable pid is unique for each observation? 
+-	How many pids are unique?
+-	How many duplicate pids do you have?
+	100 participants were screened and enrolled for this study – so you can decide to remove any duplicate records.
+-	Identify pids duplicated and drop them?
+-	How many observations now left in your dataset?
+
+### Answer
+
+#### Main dataset
+
+First, we check if there are any duplicates:
+
+```{r}
+data_tidy_main |>
+  dplyr::group_by(pwid) |>
+  dplyr::filter(dplyr::n() > 1) |>
+  print(width = Inf)
+```
+
+There are three PIDs with two entries, and all appear to have the same data for every single column, meaning they are duplicates.
+Therefore we take just one for each of these:
+
+```{r}
+data_tidy_main <- data_tidy_main |>
+  dplyr::group_by(pwid) |>
+  dplyr::slice(1) |>
+  dplyr::ungroup()
+```
+
+Previously there were 103 rows (as shown in the tibble printout before), and now there are 100 rows, indicating this was done correctly:
+
+```{r}
+nrow(data_tidy_main)
+```
+
+So, there are 100 unique participants.
+
+#### Infant dataset
+
+Now, we check if there are any duplicates:
+
+```{r}
+data_tidy_infant |>
+  dplyr::group_by(pwid) |>
+  dplyr::filter(dplyr::n() > 1)
+```
+
+There are no duplicates. Therefore, there are 100 entries in both the infant and main datasets, which is correct.
+
+## Step Two: Browse the data
+
+### Question One
+
+1.	Check for important variables relevant to your analysis 
+-	Describe and browse the following variables
+i.	maternal DOB 
+ii.	maternal HIV status
+iii.	maternal height and weight
+iv.	SES category
+-	Check the format of variables 
+-	List the range for the variables maternal weight and maternal height?
+-	Tabulate categorical variables
+-	How many women are HIV  negative?
+-	What is the proportion of women with lowest SES?
+-	Sum continuous variables 
+i.	State the descriptive statistics for maternal weight and height (mean, median. min and max, IQR)
+
+### Answer One
+
+We describe and browse the maternal DOB, HIV status, height, weight and SES category variables.
+
+```{r}
+cn_vec_exp <- c("mdob", "hivstatus", "HeightCm", "WeightKg", "sescat")
+```
+
+First, we print a few random entries:
+
+```{r}
+UtilsDataRSV::view_cols(data_tidy_main[, cn_vec_exp])
+```
+
+The mother's date of birth comes through incorrectly formatted, so we'll have to correct that.
+
+Now, we examine the format:
+
+```{r}
+for (cn in cn_vec_exp) {
+  print(cn)
+  print(class(data_tidy_main[[cn]]))
+  print("---")
+}
+```
+
+The categorical variables are characters and not factors, and the continuous variables (height and weight) are numeric.
+The date of birth variable has the Date type.
+
+The range of maternal weight and height is as follows:
+
+```{r}
+for (cn in c("HeightCm", "WeightKg")) {
+  print(cn)
+  print(range(data_tidy_main[[cn]]))
+  print("---")
+}
+```
+
+Clearly an extremely wide range.
+It is not clear if the weight of 25.5kg is correct, but we will assume it is as perhaps the mother is very unwell and we cannot ask anyone during this practical about this.
+
+Below we tabulate the categorical variables.
+
+The majority of the women are HIV positive, with 26 being HIV-:
+
+```{r}
+table(data_tidy_main[["hivstatus"]]) |>
+  knitr::kable()
+```
+
+The women are somewhat evenly spread out across SES levels, but the most common category is `highest` (41) and the least is medium (`25`):
+
+```{r}
+table(data_tidy_main[["sescat"]]) |>
+  knitr::kable()
+```
+
+37% of women have the lowest SES.
+
+Below we give a five-number summary for maternal weight and height.
+
+For height:
+
+```{r}
+summary(data_tidy_main[["HeightCm"]])
+```
+
+For weight:
+
+```{r}
+summary(data_tidy_main[["WeightKg"]])
+```
+
+The average women is 1.6m tall and weights 76kg, but a narrow IQR for height (1.55m to 1.64m) buta wider IQR for weight (62kg to 89kg).
+
+## Section Two
+
+### Question
+
+Gravidity is defined as the number of times that a woman has been pregnant. What is the lowest and highest number of times a woman has been pregnant and how many observations? 
+
+### Answer
+
+We tally the number of times the women in our study have been pregnant exactly a given number of times:
+
+```{r}
+data_tidy_main |>
+  dplyr::group_by(grav) |>
+  dplyr::summarise(count = dplyr::n())
+```
+
+Clearly, 14 women had their first pregnancy during the study and only 2 had their fifth.
+
+## Section Three
+
+### Question
+
+-	The recruitment for the study was done between Jan 2017 – April 2017
+-	For dates, make sure to format as a date (d.o.b and date of enrolment).
+-	Check for typo error in the dates
+	I often use a date format that shows the month in letters so there is no confusion between which is the day and which is the month.
+-	Look up for the observation(s) with a date after 30 April 2017
+-	Pay attention to the potential errors and decide on how to fix them
+-	Fix the enrolment dates 
+
+### Answer
+
+We have already formatted the dates as dates.
+
+We now look for typos, which presumably are dates that implausible (too far in the past or in the future) or incorrect (date of enrolment lies outside study recruitment window).
+
+The years of birth are plausible:
+
+```{r}
+data_tidy_main$mdob |> lubridate::year() |> summary()
+```
+
+Clearly at least one year of enrolment was incorrectly recorded as 2027:
+
+```{r}
+data_tidy_main$date_enrolment |> lubridate::year() |> summary()
+```
+
+Three entries have years of enrolment after 2017:
+
+```{r}
+data_tidy_main |>
+  dplyr::filter(lubridate::year(date_enrolment) > 2017)
+```
+
+Only these three entires have dates of enrolment after 30 April 2017:
+
+```{r}
+data_tidy_main |>
+  dplyr::filter(
+    date_enrolment > as.Date("2017-04-30")
+  )
+```
+
+We assume these are typos and w correct them (but of course we would need to check, especially for the 2018 and 2019 entries).
+
+First we create a vector to replace it with:
+
+```{r}
+date_vec_rep <- purrr::map(
+  data_tidy_main[["date_enrolment"]], function(x) {
+    if (x > as.Date("2017-04-30")) {
+      as.Date(paste0("2017", format(x, "-%m-%d")))
+    } else {
+      x
+    }
+  }
+) |>
+  unlist()
+date_vec_rep <- as.Date(date_vec_rep)
+```
+
+Now we check that the replacements are correct:
+```{r}
+data.frame(
+  "Replacement" = date_vec_rep[date_vec_rep != data_tidy_main[["date_enrolment"]]],
+  "Original" = data_tidy_main[["date_enrolment"]][date_vec_rep != data_tidy_main[["date_enrolment"]]]
+)
+```
+
+Only these were changed, and they were changed in the right way.
+
+So, we make the replacent:
+
+```{r}
+data_tidy_main[["date_enrolment"]] <- date_vec_rep
+```
+
+## Section Four: Handle outliers
+
+### Question
+
+-	initial exploratory analysis and data visualization can identify outliers
+-	histogram and box plots for important variables
+
+### Answer
+
+```{r}
+cn_vec_cont_plot <- c("hb", "HeightCm", "WeightKg", "gab_w", "gad_final")
+plot_tbl_cont_w <- data_tidy_main[, c("pwid", cn_vec_cont_plot)]
+plot_tbl_cont <- plot_tbl_cont_w |>
+  tidyr::pivot_longer(
+    cols = tidyselect::all_of(cn_vec_cont_plot),
+    names_to = "var",
+    values_to = "val"
+  )
+p <- ggplot(
+  data = plot_tbl_cont
+) +
+  cowplot::theme_cowplot() +
+  cowplot::background_grid(major = "y") + 
+  geom_boxplot(
+    mapping = aes(
+      x = var,
+      y = val
+    ),
+    outlier.size = -1
+  ) +
+  ggforce::geom_sina(
+    mapping = aes(
+      x = var,
+      y = val
+    ),
+    alpha = 0.5
+  ) +
+  facet_wrap(
+    ~ var, ncol = 3, scales = "free"
+  ) +
+  theme(
+    axis.ticks.x =element_blank(),
+    axis.text.x = element_blank()
+  ) +
+  labs(x = "Variable", y = "Value")
+path_plot <- projr::projr_path_get(
+  "cache", "p-exp.pdf"
+)
+cowplot::ggsave2(
+  filename = path_plot,
+  plot = p,
+  units = "cm",
+  height = 15,
+  width = 15
+)
+```
+
+```{r}
+#| results: asis
+pander::pandoc.image(path_plot)
+```
+
+There are several outliers in terms of the gestational age at birth as well as height, and possibly weight.
+
+We filter them here:
+
+```{r}
+plot_tbl_cont_w |>
+  dplyr::filter(
+    gad_final < 31 |
+    gab_w > 21 |
+    HeightCm > 180 | HeightCm< 140 |
+    WeightKg < 26
+  )
+```
+
+Judging by the number of observation matchingthe number of conditions, these are all different individuals.
+
+The very tall person is not as heavy as one would expect given the height.
+
+## Section Five
+
+### Question
+
+5.	Transform data in preparation for your analysis
+-	Generate new variables – Age, BMI
+i.	State the descriptive statistics for maternal age by HIV status
+-	Converting numeric variable into categorical, agecat
+ii.	Convert the variable maternal age into a categorical variable with 3 categories 
+16 - 24 years, 25 - 30 years and 31 years and older
+iii.	Convert the variable maternal bmi into a categorical variable with 5 categories
+-	Recode categorical bmi from 5 to 3 options
+
+### Answer
+
+```{r}
+data_tidy_main <- data_tidy_main |>
+  dplyr::mutate(BMI = WeightKg/(HeightCm/100)^2) |>
+  dplyr::mutate(
+    Age = lubridate::year(date_enrolment) - lubridate::year(mdob)
+  )
+```
+
+```{r}
+for (x in unique(data_tidy_main[["hivstatus"]])) {
+  data_tidy_filt <- data_tidy_main |>
+    dplyr::filter(hivstatus == x)
+  summary(data_tidy_filt[["BMI"]])
+  summary(data_tidy_filt[["Age"]])
+}
+```
+
+```{r}
+data_tidy_main |>
+ dplyr::mutate(
+   age = cut(
+    Age, 
+    breaks = c(0, 24, 30, 1000)
+   ),
+    bmi = cut(
+      BMI,
+      breaks = c(0, 15, 25, 30, 35, 100),
+      labels = c("underweight", "normal", "overweight", "obese", "morbidly obese")
+    )
+ )
+```
+
+## Section Six
+
+### Question
+
+-	Merge the main dataset with the infant dataset with information at delivery and infant information
+-	State the descriptive statistics for infant weight by HIV status
+
+### Answer
+
+```{r}
+data_tidy_join <- data_tidy_main |>
+  dplyr::left_join(
+    data_tidy_infant |> dplyr::mutate(pwid= as.character(pwid)),
+    by = "pwid"
+  )
+```
+
+```{r}
+for (x in unique(data_tidy_join[["hivstatus"]])) {
+  data_tidy_filt <- data_tidy_join |>
+    dplyr::filter(hivstatus == x)
+  print(summary(data_tidy_filt[["bw"]]))
+}
+```
+
+## Handle missing data
+
+Multiple imputation by chained equations is one approach.

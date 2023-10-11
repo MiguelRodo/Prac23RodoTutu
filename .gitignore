@@ -1,0 +1,15 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+_projr-local.yml
+
+# Start of projr section: do not edit by hand (until `# End of projr section`)
+_data_raw/**
+_tmp/**
+_output/**
+_archive/**
+docs/**
+# End of projr section
+
