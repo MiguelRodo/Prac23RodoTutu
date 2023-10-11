@@ -1,6 +1,6 @@
 Package: Prac23RodoTutu
 Title: Interview practical for Tutu foundation
-Version: 0.0.0-1
+Version: 1.0.0
 Authors@R: person("Miguel", "Rodo", , "miguel.rodo@uct.ac.za", role = c("aut", "cre"))
 Maintainer: Miguel Rodo <miguel.rodo@uct.ac.za>
 Description: Interview practical for Tutu foundation
